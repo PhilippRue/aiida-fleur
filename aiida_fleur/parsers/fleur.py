@@ -123,98 +123,117 @@ class FleurParser(Parser):
             except OSError:
                 self.logger.error(f'Failed to open error file: {errorfile}.')
                 return self.exit_codes.ERROR_OPENING_OUTPUTS
-
             if error_file_lines:
-
                 if isinstance(error_file_lines, bytes):
                     error_file_lines = error_file_lines.replace(b'\x00', b' ')
                 else:
                     error_file_lines = error_file_lines.replace('\x00', ' ')
-                if 'Run finished successfully' not in error_file_lines:
-                    self.logger.warning('The following was written into std error and piped to {}'
-                                        ' : \n {}'.format(errorfile, error_file_lines))
-                    self.logger.error('FLEUR calculation did not finish successfully.')
 
-                    # here we estimate how much memory was available and consumed
-                    mpiprocs = self.node.get_attribute('resources').get('num_mpiprocs_per_machine', 1)
+        # Open log-file as well
+        try:
+            run_was_successful="finished successfully" in error_file_lines
+        except:
+            run_was_successful=False    
+        if FleurCalculation._LOG_FILE_NAME in list_of_files:
+            logfile = FleurCalculation._LOG_FILE_NAME
+            # read
+            import json
+            try:
+                with output_folder.open(logfile, 'r') as efile:
+                    log_file_entries = json.load(efile)
+                    run_was_successful="Success" in log_file_entries[-1]
+            except OSError:
+                self.logger.error(f'Failed to open log file: {logfile}.')
+                return self.exit_codes.ERROR_OPENING_OUTPUTS
+            except json.JSONDecodeError:
+                self.logger.error("logfile not correctly formatted")
+                
+        #Now check for different kind of errors
+        if not run_was_successful:
+            self.logger.warning('The following was written into std error and piped to {}'
+                                ' : \n {}'.format(errorfile, error_file_lines))
+            self.logger.error('FLEUR calculation did not finish successfully.')
 
-                    kb_used = 0.0
-                    if has_xml_outfile:
-                        with output_folder.open(FleurCalculation._OUTXML_FILE_NAME,
-                                                'r') as out_file:  # lazy out.xml parsing
-                            outlines = out_file.read()
-                            try:
-                                line_avail = re.findall(r'<mem memoryPerNode="\d+', outlines)[0]
-                                mem_kb_avail = int(re.findall(r'\d+', line_avail)[0])
-                            except IndexError:
-                                mem_kb_avail = 1.0
-                                self.logger.info('Did not manage to find memory available info.')
-                            else:
-                                usage_json = FleurCalculation._USAGE_FILE_NAME
-                                if usage_json in list_of_files:
-                                    with output_folder.open(usage_json, 'r') as us_file:
-                                        usage = json.load(us_file)
-                                    kb_used = usage['data']['VmPeak']
-                                else:
-                                    try:
-                                        line_used = re.findall(r'used.+', error_file_lines)[0]
-                                        kb_used = int(re.findall(r'\d+', line_used)[2])
-                                    except IndexError:
-                                        self.logger.info('Did not manage to find memory usage info.')
-                    else:
-                        kb_used = 0.0
+            # here we estimate how much memory was available and consumed
+            mpiprocs = self.node.get_attribute('resources').get('num_mpiprocs_per_machine', 1)
+
+            kb_used = 0.0
+            if has_xml_outfile:
+                with output_folder.open(FleurCalculation._OUTXML_FILE_NAME,
+                                        'r') as out_file:  # lazy out.xml parsing
+                    outlines = out_file.read()
+                    try:
+                        line_avail = re.findall(r'<mem memoryPerNode="\d+', outlines)[0]
+                        mem_kb_avail = int(re.findall(r'\d+', line_avail)[0])
+                    except IndexError:
                         mem_kb_avail = 1.0
                         self.logger.info('Did not manage to find memory available info.')
-                        self.logger.info('Did not manage to find memory usage info.')
+                    else:
+                        usage_json = FleurCalculation._USAGE_FILE_NAME
+                        if usage_json in list_of_files:
+                            with output_folder.open(usage_json, 'r') as us_file:
+                                usage = json.load(us_file)
+                            kb_used = usage['data']['VmPeak']
+                        else:
+                            try:
+                                line_used = re.findall(r'used.+', error_file_lines)[0]
+                                kb_used = int(re.findall(r'\d+', line_used)[2])
+                            except IndexError:
+                                self.logger.info('Did not manage to find memory usage info.')
+            else:
+                kb_used = 0.0
+                mem_kb_avail = 1.0
+                self.logger.info('Did not manage to find memory available info.')
+                self.logger.info('Did not manage to find memory usage info.')
 
-                    # here we estimate how much walltime was available and consumed
-                    try:
-                        time_avail_sec = self.node.attributes['last_job_info']['requested_wallclock_time_seconds']
-                        time_calculated = self.node.attributes['last_job_info']['wallclock_time_seconds']
-                        if 0.97 * time_avail_sec < time_calculated:
-                            return self.exit_codes.ERROR_TIME_LIMIT
-                    except KeyError:
-                        pass
+            # here we estimate how much walltime was available and consumed
+            try:
+                time_avail_sec = self.node.attributes['last_job_info']['requested_wallclock_time_seconds']
+                time_calculated = self.node.attributes['last_job_info']['wallclock_time_seconds']
+                if 0.97 * time_avail_sec < time_calculated:
+                    return self.exit_codes.ERROR_TIME_LIMIT
+            except KeyError:
+                pass
 
-                    if kb_used * mpiprocs / mem_kb_avail > 0.93 or \
-                        any(phrase in error_file_lines for phrase in OUT_OF_MEMORY_PHRASES):
-                        return self.exit_codes.ERROR_NOT_ENOUGH_MEMORY
-                    if 'TIME LIMIT' in error_file_lines or 'time limit' in error_file_lines:
-                        return self.exit_codes.ERROR_TIME_LIMIT
-                    if 'Atom spills out into vacuum during relaxation' in error_file_lines:
-                        return self.exit_codes.ERROR_VACUUM_SPILL_RELAX
-                    if 'Error checking M.T. radii' in error_file_lines:
-                        return self.exit_codes.ERROR_MT_RADII
-                    if 'No solver linked for Hubbard 1' in error_file_lines:
-                        return self.exit_codes.ERROR_MISSING_DEPENDENCY.format(name='edsolver')
-                    if 'FLEUR is not linked against libxc' in error_file_lines:
-                        return self.exit_codes.ERROR_MISSING_DEPENDENCY.format(name='libxc')
-                    if 'Overlapping MT-spheres during relaxation: ' in error_file_lines:
-                        overlap_line = re.findall(r'\S+ +\S+ olap: +\S+', error_file_lines)[0].split()
-                        with output_folder.open('relax.xml', 'r') as rlx:
-                            schema_dict = InputSchemaDict.fromVersion('0.34')
-                            relax_dict = parse_relax_file(rlx, schema_dict)
-                            it_number = len(relax_dict['energies']) + 1  # relax.xml was not updated
-                        error_params = {
-                            'error_name': 'MT_OVERLAP_RELAX',
-                            'description': ('This output node contains information'
-                                            'about FLEUR error'),
-                            'overlapped_indices': overlap_line[:2],
-                            'overlaping_value': overlap_line[3],
-                            'iteration_number': it_number
-                        }
-                        link_name = self.get_linkname_outparams()
-                        error_params = Dict(error_params)
-                        self.out('error_params', error_params)
-                        return self.exit_codes.ERROR_MT_RADII_RELAX
-                    if 'parent_folder' in calc.inputs:  # problem in reusing cdn for relaxations, drop cdn
-                        if 'fleurinp' in calc.inputs:
-                            if 'relax.xml' in calc.inputs.fleurinp.files:
-                                return self.exit_codes.ERROR_DROP_CDN
-                        return self.exit_codes.ERROR_FLEUR_CALC_FAILED
+            if kb_used * mpiprocs / mem_kb_avail > 0.93 or \
+                any(phrase in error_file_lines for phrase in OUT_OF_MEMORY_PHRASES):
+                return self.exit_codes.ERROR_NOT_ENOUGH_MEMORY
+            if 'TIME LIMIT' in error_file_lines or 'time limit' in error_file_lines:
+                return self.exit_codes.ERROR_TIME_LIMIT
+            if 'Atom spills out into vacuum during relaxation' in error_file_lines:
+                return self.exit_codes.ERROR_VACUUM_SPILL_RELAX
+            if 'Error checking M.T. radii' in error_file_lines:
+                return self.exit_codes.ERROR_MT_RADII
+            if 'No solver linked for Hubbard 1' in error_file_lines:
+                return self.exit_codes.ERROR_MISSING_DEPENDENCY.format(name='edsolver')
+            if 'FLEUR is not linked against libxc' in error_file_lines:
+                return self.exit_codes.ERROR_MISSING_DEPENDENCY.format(name='libxc')
+            if 'Overlapping MT-spheres during relaxation: ' in error_file_lines:
+                overlap_line = re.findall(r'\S+ +\S+ olap: +\S+', error_file_lines)[0].split()
+                with output_folder.open('relax.xml', 'r') as rlx:
+                    schema_dict = InputSchemaDict.fromVersion('0.34')
+                    relax_dict = parse_relax_file(rlx, schema_dict)
+                    it_number = len(relax_dict['energies']) + 1  # relax.xml was not updated
+                error_params = {
+                    'error_name': 'MT_OVERLAP_RELAX',
+                    'description': ('This output node contains information'
+                                    'about FLEUR error'),
+                    'overlapped_indices': overlap_line[:2],
+                    'overlaping_value': overlap_line[3],
+                    'iteration_number': it_number
+                }
+                link_name = self.get_linkname_outparams()
+                error_params = Dict(error_params)
+                self.out('error_params', error_params)
+                return self.exit_codes.ERROR_MT_RADII_RELAX
+            if 'parent_folder' in calc.inputs:  # problem in reusing cdn for relaxations, drop cdn
+                if 'fleurinp' in calc.inputs:
+                    if 'relax.xml' in calc.inputs.fleurinp.files:
+                        return self.exit_codes.ERROR_DROP_CDN
+                return self.exit_codes.ERROR_FLEUR_CALC_FAILED
 
-                    #Catch all exit code for an unknown failure
-                    return self.exit_codes.ERROR_FLEUR_CALC_FAILED
+            #Catch all exit code for an unknown failure
+            return self.exit_codes.ERROR_FLEUR_CALC_FAILED
 
         # if a relax.xml was retrieved
         if FleurCalculation._RELAX_FILE_NAME in list_of_files:

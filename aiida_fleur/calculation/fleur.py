@@ -52,6 +52,7 @@ class FleurCalculation(CalcJob):
     _CDN1_FILE_NAME = 'cdn1'
     _SHELLOUTPUT_FILE_NAME = 'shell.out'
     _ERROR_FILE_NAME = 'out.error'
+    _LOG_FILE_NAME = 'runlog.json'
     # other
     _OUT_FILE_NAME = 'out'
     _CDNC_FILE_NAME = 'cdnc'  # core charge density
@@ -521,6 +522,7 @@ class FleurCalculation(CalcJob):
             retrieve_list.append(self._INPXML_FILE_NAME)
         retrieve_list.append(self._SHELLOUTPUT_FILE_NAME)
         retrieve_list.append(self._ERROR_FILE_NAME)
+        retrieve_list.append(self._LOG_FILE_NAME)
         retrieve_list.append(self._USAGE_FILE_NAME)
         # retrieve_list.append(self._TIME_INFO_FILE_NAME)
         # retrieve_list.append(self._OUT_FILE_NAME)
