@@ -297,6 +297,8 @@ class FleurEosWorkChain(WorkChain):
             for i in volume, bulk_modulus, bulk_deriv, residuals:
                 if isinstance(i, complex):
                     write_defaults_fit = True
+                if i == None:
+                    write_defaults_fit = True
 
             if all(i is not None for i in (volume, bulk_modulus, bulk_deriv, residuals)):
                 # cast float, because np datatypes are sometimes not serialable
