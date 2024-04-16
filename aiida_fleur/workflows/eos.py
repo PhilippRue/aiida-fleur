@@ -52,7 +52,7 @@ class FleurEosWorkChain(WorkChain):
                                 about general succeed, fit results and so on.
     """
 
-    _workflowversion = '0.5.1'
+    _workflowversion = '0.6.0'
 
     _default_wf_para = {'points': 9, 'step': 0.005, 'guess': 1.00, 'enforce_same_para': True}
     _default_options = FleurScfWorkChain._default_options
@@ -359,7 +359,7 @@ class FleurEosWorkChain(WorkChain):
             bulk_deriv = None
 
         if "fleurinp" in self.inputs:
-            uuid=self.inputs.fleurinp.uuid
+            uuid=self.inputs.fleurinp.get_structuredata().uuid
         else:    
             uuid=self.inputs.structure.uuid
 
@@ -452,9 +452,9 @@ class FleurEosWorkChain(WorkChain):
         for scale in scalelist:
             fm=FleurinpModifier(self.inputs.fleurinp)
             if 'bulkLattice' in input_dict["cell"]:
-                fm.add_number_to_attrib("scale",scale,contains="bulkLattice",mode='rel') #rel means multiplaction here
+                fm.add_number_to_first_attrib("scale",scale,contains="/fleurInput/cell/bulkLattice/@scale",mode='rel') #rel means multiplaction here
             if 'filmLattice' in input_dict["cell"]:
-                fm.set_attrib_value("scale",scale,contains="filmLattice",mode='rel')
+                fm.add_number_to_first_attrib("scale",scale,contains="/fleurInput/cell/filmLattice/@scale",not_contains="/a",mode='rel')
             re_structures[scale]=fm.freeze()
 
         # in AiiDA link labels are always strings, because of namespaces '.' are not allowed.

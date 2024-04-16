@@ -37,9 +37,15 @@ class StructureNodeOrFileParamType(click.ParamType):
         # aiida allows also for shorten uuids
         from aiida.orm import StructureData, QueryBuilder
 
-        if value == "inp.xml":
+        if value in ["inp.xml",".",'./']:
             from aiida_fleur.data.fleurinp import FleurinpData
-            finp = FleurinpData(files=[value])
+            inp_files=["inp.xml"]
+            #check if there are included files in this dir
+            for file in ["kpts.xml","sym.xml","relax.xml"]:
+                import os.path
+                if os.path.isfile(file):
+                    inp_files.append(file)
+            finp = FleurinpData(files=inp_files)
             return finp.store()
 
         try:
