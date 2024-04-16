@@ -37,6 +37,11 @@ class StructureNodeOrFileParamType(click.ParamType):
         # aiida allows also for shorten uuids
         from aiida.orm import StructureData, QueryBuilder
 
+        if value == "inp.xml":
+            from aiida_fleur.data.fleurinp import FleurinpData
+            finp = FleurinpData(files=[value])
+            return finp.store()
+
         try:
             structure = types.DataParamType(sub_classes=('aiida.data:core.structure',)).convert(value, param, ctx)
         except (NotExistent, click.exceptions.BadParameter) as er:

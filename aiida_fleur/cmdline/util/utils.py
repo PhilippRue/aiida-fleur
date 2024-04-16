@@ -62,3 +62,5 @@ def launch_process(process, daemon, **inputs):
         click.echo(f'Running a {process_name}...')
         _, node = launch.run_get_node(process, **inputs)
         echo_process_results(node)
+
+    return node.pk    

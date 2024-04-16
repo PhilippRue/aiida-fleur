@@ -26,6 +26,8 @@ from aiida.engine import calcfunction as cf
 from aiida.common import AttributeDict
 
 from masci_tools.util.constants import HTR_TO_EV
+from aiida_fleur.data.fleurinp import FleurinpData
+from aiida_fleur.data.fleurinpmodifier import FleurinpModifier
 
 from aiida_fleur.tools.StructureData_util import rescale, rescale_nowf, is_structure
 from aiida_fleur.workflows.scf import FleurScfWorkChain
@@ -64,7 +66,8 @@ class FleurEosWorkChain(WorkChain):
             'fleurinp',
         ))
         spec.input('wf_parameters', valid_type=Dict, required=False)
-        spec.input('structure', valid_type=StructureData, required=True)
+        spec.input('structure', valid_type=StructureData, required=False)
+        spec.input('fleurinp', valid_type=FleurinpData, required=False)
 
         spec.outline(cls.start, cls.structures, cls.run_first, cls.inspect_first, cls.converge_scf, cls.return_results)
 
@@ -140,11 +143,21 @@ class FleurEosWorkChain(WorkChain):
             self.ctx.scalelist.append(startscale + point * step)
 
         self.report(f'scaling factors which will be calculated:{self.ctx.scalelist}')
-        self.ctx.org_volume = self.inputs.structure.get_cell_volume()
+        if 'structure' in self.inputs:
+            self.ctx.org_volume = self.inputs.structure.get_cell_volume()
+            struct_dict=eos_structures(self.inputs.structure, List(list=self.ctx.scalelist))
+        elif 'fleurinp' in self.inputs:
+            self.ctx.org_volume = self.inputs.fleurinp.get_structuredata_ncf().get_cell_volume()
+            struct_dict=self.inpxml_structures(List(list=self.ctx.scalelist))
+        else:
+            error = f'ERROR: input wf_parameters for EOS contains neither struct not fleurinp'
+            self.report(error)
+            return self.exit_codes.ERROR_INVALID_INPUT_PARAM
 
-        struc_dict = eos_structures(self.inputs.structure, List(list=self.ctx.scalelist))
+       
+        
         # since cf this has to be a dict, we sort to assure ordering of scale
-        self.ctx.structures = [struc_dict[key] for key in sorted(struc_dict)]
+        self.ctx.structures = [struct_dict[key] for key in sorted(struct_dict)]
 
     def run_first(self):
         """
@@ -153,9 +166,13 @@ class FleurEosWorkChain(WorkChain):
         calcs = {}
 
         i = 0
-        struc = self.ctx.structures[i]
+        struc_or_fleurinp = self.ctx.structures[i]
         inputs = self.get_inputs_scf_first()
-        inputs.structure = struc
+        if isinstance(struc_or_fleurinp,FleurinpData):
+            inputs.fleurinp=struc_or_fleurinp
+            struc=struc_or_fleurinp.get_structuredata_ncf()
+        else:    
+            inputs.structure = struc_or_fleurinp
         natoms = len(struc.sites)
         label = f'scale_{self.ctx.scalelist[i]}'.replace('.', '_')
         label_c = '|eos| fleur_scf_wc'
@@ -191,9 +208,13 @@ class FleurEosWorkChain(WorkChain):
         """
         calcs = {}
 
-        for i, struc in enumerate(self.ctx.structures[1:]):
+        for i, struc_or_fleurinp in enumerate(self.ctx.structures[1:]):
             inputs = self.get_inputs_scf()
-            inputs.structure = struc
+            if isinstance(struc_or_fleurinp,FleurinpData):
+                inputs.fleurinp=struc_or_fleurinp
+                struc=struc_or_fleurinp.get_structuredata_ncf()
+            else:
+                inputs.structure = struc_or_fleurinp
             natoms = len(struc.sites)
             label = f'scale_{self.ctx.scalelist[i + 1]}'.replace('.', '_')
             label_c = '|eos| fleur_scf_wc'
@@ -217,6 +238,10 @@ class FleurEosWorkChain(WorkChain):
         """
         input_scf = AttributeDict(self.exposed_inputs(FleurScfWorkChain, namespace='scf'))
 
+        if "fleurinp" in self.inputs:
+            input_scf.pop("inpgen",None)
+            input_scf.pop("calc_parameters",None)
+
         return input_scf
 
     def get_inputs_scf(self):
@@ -230,6 +255,10 @@ class FleurEosWorkChain(WorkChain):
             # TODO maybe merge with user given calcparameters...
             input_scf['calc_parameters'] = self.ctx.first_calc_parameters
 
+        if "fleurinp" in self.inputs:
+            input_scf.pop("inpgen",None)
+            input_scf.pop("calc_parameters",None)
+
         return input_scf
 
     def return_results(self):
@@ -242,7 +271,11 @@ class FleurEosWorkChain(WorkChain):
         t_energylist_peratom = []
         vol_peratom_success = []
         outnodedict = {}
-        natoms = len(self.inputs.structure.sites)
+        if "fleurinp" in self.inputs:
+            natoms = len(self.inputs.fleurinp.get_structuredata_ncf().sites)
+        else:    
+            natoms = len(self.inputs.structure.sites)
+
         e_u = 'eV'
         dis_u = 'me/bohr^3'
         for label in self.ctx.labels:
@@ -325,12 +358,22 @@ class FleurEosWorkChain(WorkChain):
             bulk_modulus = None
             bulk_deriv = None
 
+        if "fleurinp" in self.inputs:
+            uuid=self.inputs.fleurinp.uuid
+        else:    
+            uuid=self.inputs.structure.uuid
+
+        calc_uuids=[]
+        for i,scale in enumerate(self.ctx.scalelist):
+            label = f'scale_{self.ctx.scalelist[i]}'.replace('.', '_')
+            calc_uuids.append(self.ctx[label].uuid)
+
         out = {
             'workflow_name': self.__class__.__name__,
             'workflow_version': self._workflowversion,
             'scaling': self.ctx.scalelist,
             'scaling_gs': gs_scale,
-            'initial_structure': self.inputs.structure.uuid,
+            'initial_structure': uuid,
             'volume_gs': volume * natoms,
             'volumes': volumes,
             'volume_units': 'A^3',
@@ -338,7 +381,7 @@ class FleurEosWorkChain(WorkChain):
             'total_energy': t_energylist,
             'total_energy_units': e_u,
             'structures': self.ctx.structures_uuids,
-            'calculations': [],  # self.ctx.calcs1,
+            'calculations': calc_uuids,
             'scf_wfs': [],  # self.converge_scf_uuids,
             'distance_charge': distancelist,
             'distance_charge_units': dis_u,
@@ -396,6 +439,34 @@ class FleurEosWorkChain(WorkChain):
         self.ctx.errors.append(errormsg)
         self.return_results()
 
+    def inpxml_structures(self,scalelist):
+        """
+        Rescales a inp.xml by modification of scaling factor
+
+        :param scalelist: scaling factors
+        """
+
+        input_dict = self.inputs.fleurinp.inp_dict
+        
+        re_structures={}
+        for scale in scalelist:
+            fm=FleurinpModifier(self.inputs.fleurinp)
+            if 'bulkLattice' in input_dict["cell"]:
+                fm.add_number_to_attrib("scale",scale,contains="bulkLattice",mode='rel') #rel means multiplaction here
+            if 'filmLattice' in input_dict["cell"]:
+                fm.set_attrib_value("scale",scale,contains="filmLattice",mode='rel')
+            re_structures[scale]=fm.freeze()
+
+        # in AiiDA link labels are always strings, because of namespaces '.' are not allowed.
+        # replace '.' by underscore to store floats in link label
+        res_new = {}
+        for key, struc in re_structures.items():
+            # label already set by rescale_nowf
+            struc.description = str(key)
+            link_name = f'scale_{key}'.replace('.', '_')
+            res_new[link_name] = struc    
+        return res_new
+
 
 @cf
 def create_eos_result_node(**kwargs):
@@ -424,19 +495,20 @@ def create_eos_result_node(**kwargs):
 
 
 @cf
-def eos_structures(inp_structure, scalelist):
+def eos_structures(structure,  scalelist):
     """
     Calcfunction, which creates many rescaled StructureData nodes out of a given crystal structure.
     Keeps the provenance in the database
 
     :param StructureData, a StructureData node
+    :param fleurinp_structure, a Fleurinp node
     :param scalelist, AiiDA List, list of floats, scaling factors for the cell
 
     :returns: dict of New StructureData nodes with rescalled structure, which are linked to input
               Structure
     """
     # we do this in one calcfunction now to store less nodes in the DB
-    re_strucs = eos_structures_nocf(inp_structure, scalelist)
+    re_strucs = eos_structures_nocf(structure, scalelist)
 
     # in AiiDA link labels are always strings, because of namespaces '.' are not allowed.
     # replace '.' by underscore to store floats in link label
@@ -450,7 +522,7 @@ def eos_structures(inp_structure, scalelist):
     return res_new
 
 
-def eos_structures_nocf(inp_structure, scalelist):
+def eos_structures_nocf(inp_structure,scalelist):
     """
     Creates many rescalled StructureData nodes out of a crystal structure.
     Does NOT keep the provenance in the database.
@@ -464,6 +536,7 @@ def eos_structures_nocf(inp_structure, scalelist):
     if not structure:
         # TODO: log something (test if it gets here at all)
         return None
+    
     re_structures = {}
 
     for scale in scalelist:
@@ -471,6 +544,10 @@ def eos_structures_nocf(inp_structure, scalelist):
         re_structures[scale] = structure_rescaled
 
     return re_structures
+
+
+
+    
 
 
 # pylint: disable=invalid-name

@@ -19,6 +19,7 @@ from aiida_fleur.tools.dict_util import clean_nones
 from aiida.orm import Dict
 from aiida.plugins import WorkflowFactory
 from aiida.plugins import CalculationFactory
+from aiida_fleur.data.fleurinp import FleurinpData
 
 
 @click.command('inpgen')
@@ -225,7 +226,7 @@ def launch_relax(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_p
 
 
 @click.command('eos')
-@options.STRUCTURE_OR_FILE(default=defaults.get_si_bulk_structure, show_default=True)
+@options.STRUCTURE_OR_FILE(default="inp.xml", show_default=True)
 @options.INPGEN()
 @options.CALC_PARAMETERS()
 @options.FLEUR()
@@ -238,7 +239,15 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
     """
     Launch a eos workchain
     """
+
     workchain_class = WorkflowFactory('fleur.eos')
+    
+    fleurinp=None
+    
+    if isinstance(structure, FleurinpData):
+        fleurinp=structure
+        structure=None
+        
     inputs = {
         'scf': {
             'wf_parameters': scf_parameters,
@@ -248,12 +257,40 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
             'fleur': fleur
         },
         'wf_parameters': wf_parameters,
-        'structure': structure
+        'structure': structure,
+        'fleurinp': fleurinp
     }
     inputs = clean_nones(inputs)
     builder = workchain_class.get_builder()
     builder.update(inputs)
-    utils.launch_process(builder, daemon)
+    pk=utils.launch_process(builder, daemon)
+
+    #Now create output files
+    if not daemon:
+        from aiida.orm import load_node
+        wf=load_node(pk)
+        eos_output=wf.outputs.output_eos_wc_para.get_dict()
+        #json with dict
+        import json
+        with open("eos.json","w") as file:
+            json.dump(eos_output,file,indent=2)
+        #cif file
+        if "output_eos_wc_structure" in wf.outputs:
+            import os.path
+            if os.path.isfile("opt_struct.cif"): os.remove("opt_struct.cif")    
+            cif_struct=wf.outputs.output_eos_wc_structure.get_cif()
+            cif_struct.export("opt_struct.cif")
+        #plot
+        if eos_output["volume_gs"] >0 :
+            from aiida_fleur.tools.plot.fleur import plot_fleur
+            plot_fleur(wf,save=True)
+
+        for i,uuid in enumerate(eos_output["calculations"]):
+            scf=load_node(uuid)
+            scale=eos_output["scaling"][i]
+            with open(f"out_{scale}.xml","w") as f:
+                f.write(scf.outputs.last_calc.retrieved.get_object_content("out.xml"))
+
 
 
 @click.command('banddos')
