@@ -155,7 +155,7 @@ def launch_fleur(fleurinp, fleur, parent_folder, settings, daemon, max_num_machi
 
 
 @click.command('scf')
-@options.STRUCTURE_OR_FILE(default=defaults.get_si_bulk_structure, show_default=True)
+@options.STRUCTURE_OR_FILE(default="inp.xml", show_default=True)
 @options.INPGEN()
 @options.CALC_PARAMETERS()
 @options.SETTINGS()
@@ -171,6 +171,13 @@ def launch_scf(structure, inpgen, calc_parameters, fleurinp, fleur, wf_parameter
     """
     Launch a scf workchain
     """
+    fleurinp=None
+    
+    if isinstance(structure, FleurinpData):
+        fleurinp=structure
+        structure=None
+        inpgen=None
+    
     workchain_class = WorkflowFactory('fleur.scf')
     inputs = {
         'inpgen': inpgen,
@@ -187,8 +194,26 @@ def launch_scf(structure, inpgen, calc_parameters, fleurinp, fleur, wf_parameter
     inputs = clean_nones(inputs)
     builder = workchain_class.get_builder()
     builder.update(inputs)
-    utils.launch_process(builder, daemon)
+    pk=utils.launch_process(builder, daemon)
 
+    #Now create output files
+    if fleurinp and not daemon:
+        from aiida.orm import load_node
+        wf=load_node(pk)
+        scf_output=wf.outputs.output_scf_wc_para.get_dict()
+        #json with dict
+        import json
+        with open("scf.json","w") as file:
+            json.dump(scf_output,file,indent=2)
+        #plot
+        from aiida_fleur.tools.plot.fleur import plot_fleur
+        plot_fleur(wf,save=True,show=False)
+
+        #store files
+        for file in ["out.xml","cdn1","cdn_last.hdf"]:
+            if file in wf.outputs.last_calc.retrieved.list_object_names():
+                with open(file,"wb") as f:
+                    f.write(wf.outputs.last_calc.retrieved.get_object_content(file,"rb"))
 
 @click.command('relax')
 @options.STRUCTURE_OR_FILE(default=defaults.get_si_bulk_structure, show_default=True)
@@ -266,7 +291,7 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
     pk=utils.launch_process(builder, daemon)
 
     #Now create output files
-    if not daemon:
+    if fleurinp and not daemon:
         from aiida.orm import load_node
         wf=load_node(pk)
         eos_output=wf.outputs.output_eos_wc_para.get_dict()
@@ -283,7 +308,7 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
         #plot
         if eos_output["volume_gs"] >0 :
             from aiida_fleur.tools.plot.fleur import plot_fleur
-            plot_fleur(wf,save=True)
+            plot_fleur(wf,save=True,show=False)
 
         for i,uuid in enumerate(eos_output["calculations"]):
             scf=load_node(uuid)
