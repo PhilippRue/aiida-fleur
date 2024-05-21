@@ -39,89 +39,6 @@ __all__ = ('FleurinpData', 'get_fleurinp_from_folder_data', 'get_fleurinp_from_r
            'get_fleurinp_from_remote_data_cf')
 
 
-@cf
-def get_fleurinp_from_folder_data_cf(folder_node: orm.FolderData,
-                                     additional_files: orm.List | None = None) -> FleurinpData:
-    """
-    Create FleurinpData object from the given FolderData object
-
-    :param remote_node: FolderData to use for the generation of the FleurinpData
-
-    :returns: FleurinpData object with the input xml files from the FolderData
-    """
-
-    if additional_files is None:
-        additional_files = orm.List(list=[])
-
-    return get_fleurinp_from_folder_data(folder_node, additional_files=additional_files.get_list())
-
-
-@cf
-def get_fleurinp_from_remote_data_cf(remote_node: orm.RemoteData,
-                                     additional_files: orm.List | None = None) -> FleurinpData:
-    """
-    Create FleurinpData object from the given RemoteData object
-
-    :param remote_node: RemoteData to use for the generation of the FleurinpData
-    :param store: bool, if True the FleurinpData object will be stored after generation
-
-    :returns: FleurinpData object with the input xml files from the retrieved folder
-              of the calculation associated RemoteData
-    """
-
-    if additional_files is None:
-        additional_files = orm.List(list=[])
-
-    return get_fleurinp_from_remote_data(remote_node, additional_files=additional_files.get_list())
-
-
-def get_fleurinp_from_folder_data(folder_node: orm.FolderData,
-                                  store: bool = False,
-                                  additional_files: list[str] | None = None) -> FleurinpData:
-    """
-    Create FleurinpData object from the given RemoteData object
-
-    :param remote_node: RemoteData to use for the generation of the FleurinpData
-    :param store: bool, if True the FleurinpData object will be stored after generation
-
-    :returns: FleurinpData object with the input xml files from the retrieved folder
-              of the calculation associated RemoteData
-    """
-    if additional_files is None:
-        additional_files = []
-    if isinstance(additional_files, orm.List):
-        additional_files = additional_files.get_list()
-
-    input_xml_files = [file for file in folder_node.list_object_names() if file.endswith('.xml') and 'out' not in file]
-
-    fleurinp = FleurinpData(files=input_xml_files + additional_files, node=folder_node)
-    if store:
-        fleurinp.store()
-
-    return fleurinp
-
-
-def get_fleurinp_from_remote_data(remote_node: orm.RemoteData,
-                                  store: bool = False,
-                                  additional_files: list[str] | None = None) -> FleurinpData:
-    """
-    Create FleurinpData object from the given RemoteData object
-
-    :param remote_node: RemoteData to use for the generation of the FleurinpData
-    :param store: bool, if True the FleurinpData object will be stored after generation
-
-    :returns: FleurinpData object with the input xml files from the retrieved folder
-              of the calculation associated RemoteData
-    """
-
-    for link in remote_node.base.links.get_incoming().all():
-        if isinstance(link.node, orm.CalcJobNode):
-            parent_calc_node = link.node
-    retrieved = parent_calc_node.base.links.get_outgoing().get_node_by_label('retrieved')
-
-    return get_fleurinp_from_folder_data(cast(orm.FolderData, retrieved),
-                                         store=store,
-                                         additional_files=additional_files)
 
 
 class FleurinpData(orm.Data):
@@ -777,3 +694,87 @@ def convert_inpxml(fleurinp: FleurinpData, to_version: orm.Str) -> FleurinpData:
         FleurinpData will contain only the combined inp.xml
     """
     return fleurinp.convert_inpxml_ncf(to_version.value)
+
+@cf
+def get_fleurinp_from_folder_data_cf(folder_node: orm.FolderData,
+                                     additional_files: orm.List | None = None) -> FleurinpData:
+    """
+    Create FleurinpData object from the given FolderData object
+
+    :param remote_node: FolderData to use for the generation of the FleurinpData
+
+    :returns: FleurinpData object with the input xml files from the FolderData
+    """
+
+    if additional_files is None:
+        additional_files = orm.List(list=[])
+
+    return get_fleurinp_from_folder_data(folder_node, additional_files=additional_files.get_list())
+
+
+@cf
+def get_fleurinp_from_remote_data_cf(remote_node: orm.RemoteData,
+                                     additional_files: orm.List | None = None) -> FleurinpData:
+    """
+    Create FleurinpData object from the given RemoteData object
+
+    :param remote_node: RemoteData to use for the generation of the FleurinpData
+    :param store: bool, if True the FleurinpData object will be stored after generation
+
+    :returns: FleurinpData object with the input xml files from the retrieved folder
+              of the calculation associated RemoteData
+    """
+
+    if additional_files is None:
+        additional_files = orm.List(list=[])
+
+    return get_fleurinp_from_remote_data(remote_node, additional_files=additional_files.get_list())
+
+
+def get_fleurinp_from_folder_data(folder_node: orm.FolderData,
+                                  store: bool = False,
+                                  additional_files: list[str] | None = None) -> FleurinpData:
+    """
+    Create FleurinpData object from the given RemoteData object
+
+    :param remote_node: RemoteData to use for the generation of the FleurinpData
+    :param store: bool, if True the FleurinpData object will be stored after generation
+
+    :returns: FleurinpData object with the input xml files from the retrieved folder
+              of the calculation associated RemoteData
+    """
+    if additional_files is None:
+        additional_files = []
+    if isinstance(additional_files, orm.List):
+        additional_files = additional_files.get_list()
+
+    input_xml_files = [file for file in folder_node.list_object_names() if file.endswith('.xml') and 'out' not in file]
+
+    fleurinp = FleurinpData(files=input_xml_files + additional_files, node=folder_node)
+    if store:
+        fleurinp.store()
+
+    return fleurinp
+
+
+def get_fleurinp_from_remote_data(remote_node: orm.RemoteData,
+                                  store: bool = False,
+                                  additional_files: list[str] | None = None) -> FleurinpData:
+    """
+    Create FleurinpData object from the given RemoteData object
+
+    :param remote_node: RemoteData to use for the generation of the FleurinpData
+    :param store: bool, if True the FleurinpData object will be stored after generation
+
+    :returns: FleurinpData object with the input xml files from the retrieved folder
+              of the calculation associated RemoteData
+    """
+
+    for link in remote_node.base.links.get_incoming().all():
+        if isinstance(link.node, orm.CalcJobNode):
+            parent_calc_node = link.node
+    retrieved = parent_calc_node.base.links.get_outgoing().get_node_by_label('retrieved')
+
+    return get_fleurinp_from_folder_data(cast(orm.FolderData, retrieved),
+                                         store=store,
+                                         additional_files=additional_files)
