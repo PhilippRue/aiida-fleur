@@ -171,7 +171,7 @@ class FleurinpData(orm.Data):
         if filename in filelist_attribute:
             filelist_attribute.remove(filename)
             self.base.attributes.set('files', filelist_attribute)
-            self.delete_object(filename)
+            self.base.repository.delete_object(filename)
         else:
             raise ValueError(f'Could not delete file {filename} from fleurinp node {self.pk}'
                              'File does not exist on the node')
@@ -249,9 +249,9 @@ class FleurinpData(orm.Data):
             old_files_list.append(final_filename)
 
         if is_filelike:
-            self.put_object_from_filelike(path_or_handle, final_filename)
+            self.base.repository.put_object_from_filelike(path_or_handle, final_filename)
         else:
-            self.put_object_from_file(path_or_handle, final_filename)
+            self.base.repository.put_object_from_file(path_or_handle, final_filename)
 
         self.base.attributes.set('files', old_files_list)  # We want to keep the other files
 

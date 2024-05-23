@@ -81,7 +81,7 @@ class FleurParser(Parser):
         FleurCalculation = calc.process_class
 
         # this files should be retrieved
-        should_retrieve = calc.get_attribute('retrieve_list')
+        should_retrieve = calc.base.attributes.get('retrieve_list')
 
         has_xml_outfile = False
         has_relax_file = False

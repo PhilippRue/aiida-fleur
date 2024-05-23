@@ -182,7 +182,7 @@ def classify_node(node):
     workchain_node = None
     if isinstance(node, WorkChainNode):
         workchain_node = node
-        output_list = workchain_node.get_outgoing(link_type=LinkType.RETURN).all()
+        output_list = workchain_node.base.links.get_outgoing(link_type=LinkType.RETURN).all()
         for out_link in output_list:
             if re.fullmatch('output_.+_w[cf]_para', out_link.link_label):
                 parameter_node = out_link.node  # we only visualize last output node
@@ -200,7 +200,7 @@ def classify_node(node):
     if add_outputs:
         if workchain_node is None:
             workchain_node = parameter_node.get_incoming(node_class=WorkChainNode).one().node
-        add_nodes = tuple(workchain_node.get_outgoing().get_node_by_label(out_label) for out_label in add_outputs)
+        add_nodes = tuple(workchain_node.base.links.get_outgoing().get_node_by_label(out_label) for out_label in add_outputs)
 
     outputs = (parameter_node,) + add_nodes
 

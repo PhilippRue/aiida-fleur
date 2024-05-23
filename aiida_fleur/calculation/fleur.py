@@ -553,7 +553,7 @@ class FleurCalculation(CalcJob):
 
         codeinfo = CodeInfo()
         # should look like: codepath -xmlInput < inp.xml > shell.out 2>&1
-        walltime_sec = self.node.get_attribute('max_wallclock_seconds')
+        walltime_sec = self.node.base.attributes.get('max_wallclock_seconds')
         cmdline_params = []  # , "-wtime", "{}".format(walltime_sec)]"-xml"
 
         cmdline_params.append('-minimalOutput')
@@ -575,7 +575,7 @@ class FleurCalculation(CalcJob):
         # + ["<", self._INPXML_FILE_NAME,
         # ">", self._SHELLOUTPUT_FILE_NAME, "2>&1"]
         codeinfo.code_uuid = code.uuid
-        codeinfo.withmpi = self.node.get_attribute('withmpi')
+        codeinfo.withmpi = self.node.base.attributes.get('withmpi')
         codeinfo.stdin_name = None  # self._INPUT_FILE_NAME
         codeinfo.stdout_name = self._SHELLOUTPUT_FILE_NAME
         #codeinfo.join_files = True

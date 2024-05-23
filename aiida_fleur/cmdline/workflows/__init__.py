@@ -42,7 +42,7 @@ def workchain_res(process, info, label, show, keys, fmt):
     returned_dicts_info = []
     returned_dicts = []
     try:
-        results = process.get_outgoing().all()
+        results = process.base.links.get_outgoing().all()
     except ValueError as exception:
         echo.echo_critical(str(exception))
     for result in results:
