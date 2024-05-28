@@ -2,9 +2,24 @@
 Here we specify some defaults for cli commands
 """
 
+def get_default_dict():
+    import os
+    HOME=os.getenv("HOME")
+    #first see if we have already a setting file
+    try:
+        with open(f"{HOME}/.aiida-fleur/cli.json","r") as f:
+            dict=json.load(f)
+    except:
+        dict={"fleur":None,
+              "inpgen":None,
+              "copyback":False,
+              "resources":None
+              }
+    return dict    
+
+
+
 # Structures
-
-
 def get_si_bulk_structure():
     """Return a `StructureData` representing bulk silicon.
 
@@ -84,15 +99,20 @@ def get_fept_film_structure():
 # Codes
 def get_inpgen():
     """Return a `Code` node of the latest added inpgen executable in the database."""
-
-    return get_last_code('fleur.inpgen')
+    try:
+        return get_default_dict()["inpgen"]
+    except:
+        return get_last_code('fleur.inpgen')
 
 
 def get_fleur():
     """Return a `Code` node of the latest added inpgen executable in the database."""
+    try:
+        return get_default_dict()["fleur"]
+    except:
+        return get_last_code('fleur.fleur')
 
-    return get_last_code('fleur.fleur')
-
+    
 
 def get_last_code(entry_point_name):
     """Return a `Code` node of the latest code executable of the given entry_point_name in the database.
@@ -117,3 +137,44 @@ def get_last_code(entry_point_name):
     if not results:
         raise NotExistent(f'ERROR: Could not find any Code in the database with entry point: {entry_point_name}!')
     return results[0].uuid
+
+
+def get_code_interactive(entry_point_name,default_uuid=None):
+    """Return a `Code` node of the given entry_point_name in the database.
+
+    The database will be queried for the existence the possible codes, they will be listed and
+    one can be choosen.
+    If this is not exists and NotExistent error is raised.
+
+
+    :param entry_point_name: string
+    :return: the uuid of a inpgen `Code` node
+    :raise: aiida.common.exceptions.NotExistent
+    """
+    import click
+    from aiida.orm import QueryBuilder, Code
+    from aiida.common.exceptions import NotExistent
+
+    filters = {'attributes.input_plugin': {'==': entry_point_name}}
+
+    builder = QueryBuilder().append(Code, filters=filters)
+
+    if not builder.all():
+        raise NotExistent(f'ERROR: Could not find any Code in the database with entry point: {entry_point_name}!')
+ 
+    print(f"Selection for {entry_point_name}:") 
+    i=0
+    default_i=0
+    for code in builder.all():
+        if code[0].uuid==default_uuid:
+            default_i=i
+        print(f"{i}:{code[0].full_label}")
+        i=i+1
+    i=click.prompt("Please enter your choice",type=int,default=default_i)
+    try:
+        result=builder.all()[i]
+    except:
+        return default_uuid
+        
+
+    return result[0].uuid

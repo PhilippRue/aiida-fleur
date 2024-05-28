@@ -18,7 +18,106 @@ from aiida.common.exceptions import NotExistent
 from aiida.plugins import DataFactory
 from aiida.cmdline.utils.decorators import with_dbenv
 
+wf_template_files={"eos":'{"points": 9,\n'
+                          '"step": 0.002,\n'
+                          '"guess": 1.00}',
+                   "scf":'{"fleur_runmax": 4,\n'
+                          '"density_converged": 0.00002,\n'
+                          '"energy_converged": 0.002,\n'
+                          '"mode": "density",\n'
+                          '"itmax_per_run": 30}',
+                    "banddos":'{"mode": "band",\n'
+                              '"kpath": "auto",\n'
+                              '"klistname": "path-3",\n'
+                              '"kpoints_number": None,\n'
+                              '"kpoints_distance": None,\n'
+                              '"kpoints_explicit": None,\n'  
+                              '"sigma": 0.005,\n'
+                              '"emin": -0.50,\n'
+                              '"emax": 0.90\n}'
+                    }
 
+
+class FleurinpType(click.ParamType):
+    """
+    Type to either load a fleurinp node or read an inp.xml file
+    """
+    name = "FleurInp data/inp.xml file"
+    def convert(self,value,param,ctx):
+        try:
+            return types.DataParamType(sub_classes=('aiida.data:fleur.fleurinp',)).convert(value, param, ctx)
+        except:
+            pass #Ok this failed, so we try to read the file
+
+        if value in ["inp.xml",".",'./']:
+            from aiida_fleur.data.fleurinp import FleurinpData
+            inp_files=["inp.xml"]
+            #check if there are included files in this dir
+            for file in ["kpts.xml","sym.xml","relax.xml"]:
+                import os.path
+                if os.path.isfile(file):
+                    inp_files.append(file)
+            finp = FleurinpData(files=inp_files)
+            return finp.store()
+        return None
+
+class RemoteType(click.ParamType):
+    """
+    Type for remote data. Might be specified by a uuid or a file in which this uuid is found
+    """
+    name = "Remote folder"
+    def convert(self,value,param,ctx):
+        #Try to interpret value as uuid
+        try:
+            return types.DataParamType(sub_classes=('aiida.data:core.remote',)).convert(value, param, ctx)
+        except:
+            pass #Ok this failed, so we try to read the file
+           
+        try:
+            from aiida.orm import load_node
+            with open(value,"r") as f:
+                import json
+                dict_from_file=json.load(f)
+  
+            scf_wf=load_node(dict_from_file["SCF-uuid"])
+            print(scf_wf)
+            return scf_wf.outputs.last_calc.remote_folder
+        except:
+            return None
+
+class WFParameterType(click.ParamType):
+    """
+    ParamType for giving workflow parameters
+    """
+    name = "Workflow parameters"
+    def convert(self,value,param,ctx):
+        import os
+
+        if value=="template.json":
+            if ctx.command.name in wf_template_files:
+                with open(f"wf_{ctx.command.name}.json","w") as f:
+                    f.write(wf_template_files[ctx.command.name])          
+            quit()
+
+        if (os.path.isfile(value)):
+            # a file was given. Create a dict from the file and use it
+            try:
+                with open(value,"r") as f:
+                    import json
+                    wf_param=json.load(f)
+            except:
+                print(f"{value} could not be converted into a dict")
+                os.abort()
+            aiida_dict=DataFactory("dict")
+            wf_dict=aiida_dict(wf_param)
+            
+            return wf_dict.store()
+        
+        #Now load from aiida
+        wf_dict = types.DataParamType(sub_classes=('aiida.data:core.dict',)).convert(value, param, ctx)
+        
+        return wf_dict
+    
 class StructureNodeOrFileParamType(click.ParamType):
     """
     The ParamType for identifying a structure by node or to extract it from a given file
@@ -51,7 +150,7 @@ class StructureNodeOrFileParamType(click.ParamType):
         try:
             structure = types.DataParamType(sub_classes=('aiida.data:core.structure',)).convert(value, param, ctx)
         except (NotExistent, click.exceptions.BadParameter) as er:
-            echo.echo(f'Tried to load node, could not fine one for {value}. '
+            echo.echo(f'Tried to load node, could not find one for {value}. '
                       'I will further check if it is a filepath.')
             is_path = True
 

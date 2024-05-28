@@ -11,3 +11,31 @@
 '''
 AiiDA-FLEUR
 '''
+import click
+import json
+            
+from .defaults import get_code_interactive,get_default_dict
+from aiida.cmdline.utils import decorators
+
+
+# general further commands for fleur workchains
+@click.command('config')
+@decorators.with_dbenv()
+def cmd_defaults():
+    """Interactively create/modify the default settings for aiida-fleur CLI."""
+
+    dict=get_default_dict()
+
+    #default codes
+    dict["fleur"]=get_code_interactive("fleur.fleur",dict["fleur"])
+    dict["inpgen"]=get_code_interactive("fleur.inpgen",dict["inpgen"])
+    
+    try:
+        os.mkdir(f"{HOME}/.aiida-fleur")
+    except:
+         pass #dir might exist already
+    with open(f"{HOME}/.aiida-fleur/cli.json","w") as f:
+            json.dump(dict,f)
+    
+        
+

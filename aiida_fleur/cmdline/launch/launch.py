@@ -201,6 +201,8 @@ def launch_scf(structure, inpgen, calc_parameters, fleurinp, fleur, wf_parameter
         from aiida.orm import load_node
         wf=load_node(pk)
         scf_output=wf.outputs.output_scf_wc_para.get_dict()
+        scf_output["SCF-uuid"]=wf.uuid
+        
         #json with dict
         import json
         with open("scf.json","w") as file:
@@ -319,7 +321,7 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
 
 
 @click.command('banddos')
-@options.FLEURINP()
+@options.FLEURINP(default='inp.xml')
 @options.FLEUR()
 @options.WF_PARAMETERS()
 @options.REMOTE()
@@ -330,6 +332,7 @@ def launch_banddos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settin
     """
     Launch a banddos workchain
     """
+
     workchain_class = WorkflowFactory('fleur.banddos')
     inputs = {
         'wf_parameters': wf_parameters,
@@ -341,7 +344,19 @@ def launch_banddos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settin
     inputs = clean_nones(inputs)
     builder = workchain_class.get_builder()
     builder.update(inputs)
-    utils.launch_process(builder, daemon)
+    pk=utils.launch_process(builder, daemon)
+
+    #Now create output files
+    from aiida.orm import load_node
+    wf=load_node(pk)
+    banddos_output=wf.outputs.output_banddos_wc_para.get_dict()
+    #json with dict
+    import json
+    with open("banddos.json","w") as file:
+        json.dump(banddos_output,file,indent=2)
+    #plot
+    from aiida_fleur.tools.plot.fleur import plot_fleur
+    plot_fleur(wf,save=True,show=False)
 
 
 @click.command('init_cls')

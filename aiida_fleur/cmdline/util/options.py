@@ -17,7 +17,7 @@ import click
 from aiida.cmdline.params import types
 from aiida.cmdline.params.options import OverridableOption
 from .defaults import get_inpgen, get_fleur, get_si_bulk_structure
-from .types import StructureNodeOrFileParamType
+from .types import StructureNodeOrFileParamType,WFParameterType,RemoteType,FleurinpType
 
 STRUCTURE_OR_FILE = OverridableOption(
     '-s',
@@ -55,7 +55,7 @@ FLEUR = OverridableOption('-f',
 
 FLEURINP = OverridableOption('-inp',
                              '--fleurinp',
-                             type=types.DataParamType(sub_classes=('aiida.data:fleur.fleurinp',)),
+                             type=FleurinpType(),
                              help='FleurinpData node for the fleur calculation.')
 
 CALC_PARAMETERS = OverridableOption(
@@ -71,7 +71,7 @@ SETTINGS = OverridableOption('-set',
 
 WF_PARAMETERS = OverridableOption('-wf',
                                   '--wf-parameters',
-                                  type=types.DataParamType(sub_classes=('aiida.data:core.dict',)),
+                                  type=WFParameterType(),
                                   help='Dict containing parameters given to the workchain.')
 
 SCF_PARAMETERS = OverridableOption('-scf',
@@ -132,7 +132,7 @@ WITH_MPI = OverridableOption('-I',
 REMOTE = OverridableOption('-P',
                            '--parent-folder',
                            'parent_folder',
-                           type=types.DataParamType(sub_classes=('aiida.data:core.remote',)),
+                           type=RemoteType(),
                            show_default=True,
                            required=False,
                            help='The PK of a parent remote folder (for restarts).')

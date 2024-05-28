@@ -30,6 +30,7 @@ from .data import cmd_data
 from .workflows import cmd_workflow
 from .visualization import cmd_plot
 from .util import options as options_af
+from .util import cmd_defaults
 
 # Activate the completion of parameter types provided by the click_completion package
 # for bash: eval "$(_AIIDA_FLEUR_COMPLETE=source aiida-fleur)"
@@ -59,3 +60,5 @@ cmd_root.add_command(cmd_launch)
 cmd_root.add_command(cmd_data)
 cmd_root.add_command(cmd_workflow)
 cmd_root.add_command(cmd_plot)
+
+cmd_root.add_command(cmd_defaults)
