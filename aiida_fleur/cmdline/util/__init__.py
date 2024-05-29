@@ -30,6 +30,8 @@ def cmd_defaults():
     dict["fleur"]=get_code_interactive("fleur.fleur",dict["fleur"])
     dict["inpgen"]=get_code_interactive("fleur.inpgen",dict["inpgen"])
     
+    import os
+    HOME=os.getenv("HOME")
     try:
         os.mkdir(f"{HOME}/.aiida-fleur")
     except:

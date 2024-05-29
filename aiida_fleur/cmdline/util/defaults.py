@@ -99,18 +99,17 @@ def get_fept_film_structure():
 # Codes
 def get_inpgen():
     """Return a `Code` node of the latest added inpgen executable in the database."""
-    try:
-        return get_default_dict()["inpgen"]
-    except:
-        return get_last_code('fleur.inpgen')
-
+    inpgen=get_default_dict()["inpgen"]
+    if inpgen==None:
+        inpgen=get_last_code("fleur.inpgen")
+    return inpgen    
 
 def get_fleur():
     """Return a `Code` node of the latest added inpgen executable in the database."""
-    try:
-        return get_default_dict()["fleur"]
-    except:
-        return get_last_code('fleur.fleur')
+    fleur=fleur=get_default_dict()["fleur"]
+    if fleur==None:
+        fleur=get_last_code('fleur.fleur')
+    return fleur    
 
     
 
