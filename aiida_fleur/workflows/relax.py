@@ -103,6 +103,7 @@ class FleurRelaxWorkChain(WorkChain):
         # Pre-initialization of some variables
         self.ctx.loop_count = 0  # Counts relax restarts
         self.ctx.forces = []  # Collects forces
+        self.ctx.total_energy = [] #Collect total energies
         self.ctx.final_cell = None  # The relaxed Bravais matrix
         self.ctx.final_atom_positions = None  # Relaxed atom positions
         self.ctx.pbc = None  # Boundary conditions
@@ -167,7 +168,7 @@ class FleurRelaxWorkChain(WorkChain):
                 return self.exit_codes.ERROR_INPGEN_MISSING
 
         # initialize contents to avoid access failures
-        self.ctx.total_energy_last = None  #total_energy
+        self.ctx.total_energy_last = None
         self.ctx.total_energy_units = None  #total_energy_units
         self.ctx.final_cell = None
         self.ctx.final_atom_positions = None  #atom_positions
@@ -245,6 +246,8 @@ class FleurRelaxWorkChain(WorkChain):
             del input_scf.inpgen
         if 'calc_parameters' in input_scf:
             del input_scf.calc_parameters
+        if 'fleurinp' in input_scf:
+            del input_scf.fleurinp
 
         if 'wf_parameters' not in input_scf:
             scf_wf_dict = {}
@@ -314,6 +317,8 @@ class FleurRelaxWorkChain(WorkChain):
                 all_forces.extend(force[-3:])
             all_forces = [abs(x) for x in all_forces]
             self.ctx.forces.append(max(all_forces))
+            #Also store total energies
+            self.ctx.total_energy.append(relax_data.get_dict()['energies'][-1])
 
         largest_now = self.ctx.forces[-1]
 
@@ -439,7 +444,6 @@ class FleurRelaxWorkChain(WorkChain):
         Creates a new structure data node which is an
         optimized structure.
         """
-
         if self.ctx.wf_dict.get('relaxation_type', 'atoms') is None:
             input_scf = AttributeDict(self.exposed_inputs(FleurScfWorkChain, namespace='scf'))
             if 'structure' in input_scf:
@@ -468,11 +472,16 @@ class FleurRelaxWorkChain(WorkChain):
         except KeyError:
             return self.exit_codes.ERROR_NO_RELAX_OUTPUT
 
-        self.ctx.total_energy_last = total_energy
+        self.ctx.total_energy_last=total_energy
         self.ctx.total_energy_units = total_energy_units
         self.ctx.atomtype_info = atomtype_info
 
-        fleurinp = FleurinpData(files=['inp.xml', 'relax.xml'], node=retrieved_node)
+        
+        input_fleurinp_files=['inp.xml', 'relax.xml']
+        for file in ['kpts.xml','sym.xml']:
+            if file in retrieved_node.list_object_names():
+                input_fleurinp_files=input_fleurinp_files+[file]
+        fleurinp = FleurinpData(files=input_fleurinp_files, node=retrieved_node)
         structure = fleurinp.get_structuredata_ncf()
 
         self.ctx.final_structure = structure
@@ -518,7 +527,8 @@ class FleurRelaxWorkChain(WorkChain):
         out = {
             'workflow_name': self.__class__.__name__,
             'workflow_version': self._workflowversion,
-            'energy': self.ctx.total_energy_last,
+            'energy': self.ctx.total_energy,
+            'last_energy' : self.ctx.total_energy_last,
             'energy_units': self.ctx.total_energy_units,
             'info': self.ctx.info,
             'warnings': self.ctx.warnings,
