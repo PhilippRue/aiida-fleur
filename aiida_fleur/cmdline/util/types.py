@@ -26,15 +26,28 @@ wf_template_files={"eos":'{"points": 9,\n'
                           '"energy_converged": 0.002,\n'
                           '"mode": "density",\n'
                           '"itmax_per_run": 30}',
-                    "banddos":'{"mode": "band",\n'
-                              '"kpath": "auto",\n'
-                              '"klistname": "path-3",\n'
-                              '"kpoints_number": None,\n'
-                              '"kpoints_distance": None,\n'
-                              '"kpoints_explicit": None,\n'  
-                              '"sigma": 0.005,\n'
-                              '"emin": -0.50,\n'
-                              '"emax": 0.90\n}'
+                    "band":'{\n'
+                              '// Select your k-points\n'
+                              '"kpath": "auto"// This can be "auto" (meaning you try to pick a good choice automatically from inp.xml) or "seek" to use seek-k-path\n'
+                              '//",klistname": "path-3"//You can specify directly a list in the inp.xml/kpts.xml\n'
+                              '//",kpoints_number": 200\n'
+                              '//",kpoints_distance": 0.1\n'
+                              '//",kpoints_explicit": None\n}',
+                    "dos":'{\n'
+                              '// Select your k-points\n'
+                              '//"klistname": "path-3",//You can specify directly a list in the inp.xml/kpts.xml\n'
+                              '//"kpoints_number": 200,\n'
+                              '//"kpoints_distance": 0.1,\n'
+                              '// These parameters are relevant for the DOS mode\n'
+                              '"sigma": 0.005\n'
+                              '",emin": -0.50\n'
+                              '",emax": 0.90\n}',
+                    "relax":'{\n'
+                              '"film_distance_relaxation": "False", // if True, sets relaxXYZ="FFT" for all atoms\n'
+                              '"force_criterion": 0.049,            // Sets the threshold of the largest force\n'
+                              '"relax_iter": 5                      // Maximum number of optimization iterations\n'
+                              '}'          
+
                     }
 
 
@@ -78,10 +91,11 @@ class RemoteType(click.ParamType):
             with open(value,"r") as f:
                 import json
                 dict_from_file=json.load(f)
-  
-            scf_wf=load_node(dict_from_file["SCF-uuid"])
-            print(scf_wf)
-            return scf_wf.outputs.last_calc.remote_folder
+            if 'SCF-uuid' in dict_from_file:
+                scf_wf=load_node(dict_from_file["SCF-uuid"])
+                return scf_wf.outputs.last_calc.remote_folder
+            if 'retrieved-uuid' in dict_from_file:
+                return dict_from_file["retrieved-uuid"]
         except:
             return None
 
@@ -104,14 +118,17 @@ class WFParameterType(click.ParamType):
             try:
                 with open(value,"r") as f:
                     import json
-                    wf_param=json.load(f)
-            except:
+                    from json_minify import json_minify
+
+                    wf_param=json.loads(json_minify(f.read()))
+            except RuntimeError as error:
+                print(error)
                 print(f"{value} could not be converted into a dict")
                 os.abort()
             aiida_dict=DataFactory("dict")
             wf_dict=aiida_dict(wf_param)
             
-            return wf_dict.store()
+            return wf_dict
         
         #Now load from aiida
         wf_dict = types.DataParamType(sub_classes=('aiida.data:core.dict',)).convert(value, param, ctx)

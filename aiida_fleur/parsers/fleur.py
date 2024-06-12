@@ -280,7 +280,7 @@ class FleurParser(Parser):
             except NotExistent:
                 old_relax_text = ''
             else:
-                if relax_name in fleurinp.list_object_names():
+                if relax_name in fleurinp.base.repository.list_object_names():
                     with fleurinp.open(relax_name, 'r') as rlx:
                         old_relax_text = rlx.read()
                 else:

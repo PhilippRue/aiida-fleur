@@ -62,11 +62,12 @@ def plot_fleur(*args, save=False, show_dict=False, show=True, backend=None, **kw
     for arg in args:
         if isinstance(arg, list):
             # try plot together
+            print("mn:",arg)
             p1 = plot_fleur_mn(arg, save=save, show=show, backend=backend, **kwargs)
             if len(p1) == 1:
                 p1 = p1[0]
         else:
-            #print(arg)
+            print("sn:",arg)
             # plot alone
             p1 = plot_fleur_sn(arg, show_dict=show_dict, show=show, save=save, backend=backend, **kwargs)
         all_plots.append(p1)
@@ -90,7 +91,7 @@ def plot_fleur_sn(node, show_dict=False, **kwargs):
     except KeyError as exc:
         raise ValueError('Sorry, I do not know how to visualize'
                          f' this node in plot_fleur: {workflow_name} {node}') from exc
-
+    print(plot_nodes)
     plot_result = plotf(*plot_nodes, **kwargs)
 
     return plot_result
@@ -432,16 +433,44 @@ def plot_fleur_banddos_wc(param_node,
     return plot_res
 
 
-def plot_fleur_relax_wc(node, labels=None, save=False, show=True, **kwargs):
+def plot_fleur_relax_wc(node, labels=None, save=False, show=True, backend='bokeh', **kwargs):
     """
     This methods takes an AiiDA output parameter node from a relaxation
     workchain and plots some information about atom movements and forces
     """
+    from masci_tools.vis.common import convergence_plot
+
     if labels is None:
-        labels = []
+        labels = [n.pk for n in node]
+    
+    if isinstance(node, list):
+        if len(node) > 2:
+            return  # TODO
+        else:
+            node = node[0]
 
-    raise NotImplementedError
+    output_d = node.get_dict()
+    forces = output_d.get('force')
+    total_energies=output_d.get('energy')
+    iteration=range(len(forces))
+        
+    add_args = {}
+    if backend == 'bokeh':
+        add_args['legend_label'] = labels
+    else:
+        add_args['plot_label'] = labels
 
+
+    plot_res = convergence_plot(iteration,
+                                forces,
+                                total_energies,
+                                show=show,
+                                save_plots=save,
+                                backend=backend,
+                                saveas_distance="force_convergence",
+                                ylabel_distance="Largest force [Htr/bohr]",
+                                **kwargs)
+    return plot_res
 
 def plot_fleur_corehole_wc(nodes, labels=None, save=False, show=True, **kwargs):
     """
@@ -618,6 +647,7 @@ FUNCTIONS_DICT = {
     'FleurBandWorkChain': plot_fleur_band_wc,
     'FleurBandDosWorkChain': plot_fleur_banddos_wc,
     'FleurCFCoeffWorkChain': plot_fleur_cfcoeff_wc,
+    'FleurRelaxWorkChain': plot_fleur_relax_wc,
     #'fleur_corehole_wc' : plot_fleur_corehole_wc,  #support of < 1.5 release
     #'fleur_initial_cls_wc' : plot_fleur_initial_cls_wc,  #support of < 1.5 release
     #'FleurInitialCLSWorkChain' : plot_fleur_initial_cls_wc,

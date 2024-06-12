@@ -15,7 +15,8 @@ import click
 from .launch import launch_inpgen
 from .launch import launch_fleur
 from .launch import launch_scf
-from .launch import launch_banddos
+from .launch import launch_dos
+from .launch import launch_band
 from .launch import launch_relax
 from .launch import launch_eos
 from .launch import launch_corehole
@@ -36,7 +37,8 @@ def cmd_launch():
 cmd_launch.add_command(launch_inpgen)
 cmd_launch.add_command(launch_fleur)
 cmd_launch.add_command(launch_scf)
-cmd_launch.add_command(launch_banddos)
+cmd_launch.add_command(launch_dos)
+cmd_launch.add_command(launch_band)
 cmd_launch.add_command(launch_relax)
 cmd_launch.add_command(launch_eos)
 cmd_launch.add_command(launch_corehole)

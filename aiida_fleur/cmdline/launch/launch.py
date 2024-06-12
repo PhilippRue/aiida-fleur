@@ -218,7 +218,7 @@ def launch_scf(structure, inpgen, calc_parameters, fleurinp, fleur, wf_parameter
                     f.write(wf.outputs.last_calc.retrieved.get_object_content(file,"rb"))
 
 @click.command('relax')
-@options.STRUCTURE_OR_FILE(default=defaults.get_si_bulk_structure, show_default=True)
+@options.STRUCTURE_OR_FILE(default="inp.xml", show_default=True)
 @options.INPGEN()
 @options.CALC_PARAMETERS()
 @options.FLEUR()
@@ -234,9 +234,24 @@ def launch_relax(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_p
 
     # TODO final scf input
     """
-    workchain_class = WorkflowFactory('fleur.base_relax')
+    from aiida_fleur.workflows.relax import FleurRelaxWorkChain
+   
+    if isinstance(structure, FleurinpData):
+        fleurinp=structure
+        structure=None
+        inpgen=None
+
+    # we need a scf_paramters dict to change the forcemix if required later
+    if scf_parameters==None:
+        scf_parameters=Dict(dict= {
+                'force_dict': {'forcemix': 'BFGS'},
+                'inpxml_changes': []
+                })
+    
+    #workchain_class = WorkflowFactory('fleur.base_relax')
     inputs = {
         'scf': {
+            'fleurinp': fleurinp,
             'wf_parameters': scf_parameters,
             'structure': structure,
             'calc_parameters': calc_parameters,
@@ -246,11 +261,35 @@ def launch_relax(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_p
         },
         'wf_parameters': wf_parameters
     }
-    inputs = clean_nones(inputs)
-    builder = workchain_class.get_builder()
-    builder.update(inputs)
-    utils.launch_process(builder, daemon)
 
+    
+    inputs = clean_nones(inputs)
+    builder = FleurRelaxWorkChain.get_builder()
+    builder.update(inputs)
+    pk=utils.launch_process(builder, daemon)
+
+    #Now create output files
+    if fleurinp and not daemon:
+        from aiida.orm import load_node
+        wf=load_node(pk)
+        relax_output=wf.outputs.output_relax_wc_para.get_dict()
+        relax_output["Relax-uuid"]=wf.uuid
+        relax_output["retrieved-uuid"]=wf.outputs.last_scf.last_calc.retrieved.uuid
+        
+        
+        #json with dict
+        import json
+        with open("relax.json","w") as file:
+            json.dump(relax_output,file,indent=2)
+        #plot
+        from aiida_fleur.tools.plot.fleur import plot_fleur
+        plot_fleur([wf],save=True,show=False)
+
+        #store files
+        for file in ["relax.xml","out.xml","cdn1","cdn_last.hdf"]:
+            if file in wf.outputs.last_scf.last_calc.retrieved.list_object_names():
+                with open(file,"wb") as f:
+                    f.write(wf.outputs.last_scf.last_calc.retrieved.get_object_content(file,"rb"))
 
 @click.command('eos')
 @options.STRUCTURE_OR_FILE(default="inp.xml", show_default=True)
@@ -320,7 +359,7 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
 
 
 
-@click.command('banddos')
+@click.command('dos')
 @options.FLEURINP(default='inp.xml')
 @options.FLEUR()
 @options.WF_PARAMETERS()
@@ -328,11 +367,39 @@ def launch_eos(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_par
 @options.DAEMON()
 @options.SETTINGS()
 @options.OPTION_NODE()
+def launch_dos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settings, option_node):
+    """
+    Launch a banddos workchain (special command to set the dos as a default mode)
+    """
+    if wf_parameters==None:
+        wf_parameters=Dict({"mode":"dos"})
+    else:
+        wf_dict=wf_parameters.get_dict()
+        wf_dict["mode"]="dos" 
+        wf_parameters=Dict(wf_dict)
+
+    launch_banddos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settings, option_node)
+    
+
+@click.command('band')
+@options.FLEURINP(default='inp.xml')
+@options.FLEUR()
+@options.WF_PARAMETERS()
+@options.REMOTE()
+@options.DAEMON()
+@options.SETTINGS()
+@options.OPTION_NODE()
+def launch_band(fleurinp, fleur, wf_parameters, parent_folder, daemon, settings, option_node):
+    """
+    Launch a banddos workchain in 'band' mode
+    """
+    #Band is default
+    launch_banddos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settings, option_node)
+    
 def launch_banddos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settings, option_node):
     """
     Launch a banddos workchain
-    """
-
+    """   
     workchain_class = WorkflowFactory('fleur.banddos')
     inputs = {
         'wf_parameters': wf_parameters,
@@ -354,6 +421,10 @@ def launch_banddos(fleurinp, fleur, wf_parameters, parent_folder, daemon, settin
     import json
     with open("banddos.json","w") as file:
         json.dump(banddos_output,file,indent=2)
+    #the banddos.hdf file    
+    with open(f"banddos.hdf","wb") as f:
+        f.write(wf.outputs.banddos_calc.retrieved.get_object_content("banddos.hdf",'rb'))
+
     #plot
     from aiida_fleur.tools.plot.fleur import plot_fleur
     plot_fleur(wf,save=True,show=False)
