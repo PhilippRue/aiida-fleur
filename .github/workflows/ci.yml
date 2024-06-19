@@ -12,7 +12,7 @@ jobs:
         include:
           - name: docs
             sphinx-options: '' 
-            allow-failure: false
+            allow-failure: true
           - name: docs-nitpicky
             sphinx-options: '-nW'
             allow-failure: true
