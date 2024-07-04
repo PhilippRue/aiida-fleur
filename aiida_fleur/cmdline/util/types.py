@@ -46,8 +46,15 @@ wf_template_files={"eos":'{"points": 9,\n'
                               '"film_distance_relaxation": "False", // if True, sets relaxXYZ="FFT" for all atoms\n'
                               '"force_criterion": 0.049,            // Sets the threshold of the largest force\n'
                               '"relax_iter": 5                      // Maximum number of optimization iterations\n'
-                              '}'          
-
+                              '}',
+                    "ssdisp_conv":'{\n'
+                              '"beta": {"all": 1.57079},   // set the angle of some or all atoms\n'
+                              '"q_vectors": {"label1": [0.0,0.0,0.0],  //set the q-vectors. Each has a label attached\n'
+                              '               "label2": [0.1,0.0,0.0]\n'
+                              '               }\n'
+                              '//"suppress_symmetries": False  // Only if you start from a structure: do not use symmetries\n'
+                              '}'
+                    
                     }
 
 

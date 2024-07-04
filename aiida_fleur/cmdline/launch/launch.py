@@ -607,6 +607,54 @@ def launch_ssdisp(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_
     builder.update(inputs)
     utils.launch_process(builder, daemon)
 
+@click.command('ssdisp_conv')
+@options.STRUCTURE_OR_FILE(default="inp.xml", show_default=True)
+@options.INPGEN()
+@options.CALC_PARAMETERS()
+@options.FLEUR()
+@options.WF_PARAMETERS(required=True)
+@options.SCF_PARAMETERS()
+@options.DAEMON()
+@options.OPTION_NODE()
+def launch_ssdisp(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_parameters, daemon, option_node):
+    """
+    Launch a ssdisp_conv workchain
+    """
+    workchain_class = WorkflowFactory('fleur.ssdisp_conv')
+
+    fleurinp=None
+    if (isinstance(structure,FleurinpData)):
+        fleurinp=structure
+        structure=None
+        inpgen=None
+        calc_parameters=None
+
+    inputs = {
+        'scf': {
+            'wf_parameters': scf_parameters,
+            'calc_parameters': calc_parameters,
+            'options': option_node,
+            'inpgen': inpgen,
+            'structure': structure,
+            'fleurinp': fleurinp,
+            'fleur': fleur
+        },
+        'wf_parameters': wf_parameters,
+    }
+    inputs = clean_nones(inputs)
+    builder = workchain_class.get_builder()
+    builder.update(inputs)
+    pk=utils.launch_process(builder, daemon)
+
+    if not daemon:
+        from aiida.orm import load_node
+        wf=load_node(pk)
+        ssdisp_output=wf.outputs.output_ssdisp_conv_wc_para.get_dict()
+        #json with dict
+        import json
+        with open("ssdisp_conv.json","w") as file:
+            json.dump(ssdisp_output,file,indent=2)
+
 
 @click.command('dmi')
 @options.STRUCTURE_OR_FILE(default=defaults.get_fept_film_structure, show_default=True)

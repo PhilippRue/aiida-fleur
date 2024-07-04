@@ -106,18 +106,15 @@ class FleurSSDispConvWorkChain(WorkChain):
         with inpxml_changes(input_scf) as fm:
             for key, val in self.ctx.wf_dict['beta'].items():
                 fm.set_atomgroup_label(key, {'nocoParams': {'beta': val}})
-            if self.ctx.wf_dict['suppress_symmetries']:
                 fm.set_inpchanges({'qss': qss})
 
         if 'calc_parameters' in input_scf:
             calc_parameters = input_scf.calc_parameters.get_dict()
-        else:
-            calc_parameters = {}
-        if self.ctx.wf_dict['suppress_symmetries']:
-            calc_parameters['qss'] = {'x': 1.221, 'y': 0.522, 'z': -0.5251}
-        else:
-            calc_parameters['qss'] = {'x': qss[0], 'y': qss[1], 'z': qss[2]}
-        input_scf.calc_parameters = Dict(calc_parameters)
+            if self.ctx.wf_dict['suppress_symmetries']:
+               calc_parameters['qss'] = {'x': 1.221, 'y': 0.522, 'z': -0.5251}
+            else:
+               calc_parameters['qss'] = {'x': qss[0], 'y': qss[1], 'z': qss[2]}
+            input_scf.calc_parameters = Dict(calc_parameters)
 
         return input_scf
 
