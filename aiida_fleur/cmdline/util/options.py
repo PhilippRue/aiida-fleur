@@ -17,7 +17,7 @@ import click
 from aiida.cmdline.params import types
 from aiida.cmdline.params.options import OverridableOption
 from .defaults import get_inpgen, get_fleur, get_si_bulk_structure
-from .types import StructureNodeOrFileParamType,WFParameterType,RemoteType,FleurinpType
+from .types import StructureNodeOrFileParamType,WFParameterType,RemoteType,FleurinpType,OptionsType
 
 STRUCTURE_OR_FILE = OverridableOption(
     '-s',
@@ -91,7 +91,7 @@ RELAX_PARAMETERS = OverridableOption('-relax',
 
 OPTION_NODE = OverridableOption('-opt',
                                 '--option-node',
-                                type=types.DataParamType(sub_classes=('aiida.data:core.dict',)),
+                                type=OptionsType(),
                                 help='Dict, an option node for the workchain.')
 
 MAX_NUM_MACHINES = OverridableOption('-N',

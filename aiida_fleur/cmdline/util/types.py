@@ -57,6 +57,55 @@ wf_template_files={"eos":'{"points": 9,\n'
                     
                     }
 
+class OptionsType(click.ParamType):
+    """
+    Type to construct options for the computational resources to use
+    """
+    name= "options for Computational resources"
+    def convert(self,value,param,ctx):
+        
+        wf_options_template='''{ 
+"resources": {
+    "num_machines": 1, //Number of computing nodes
+    "num_mpiprocs_per_machine": 1, //Number of MPI processes per node
+    "num_cpus_per_mpiproc": 2 //Number of OMP threads per MPI process
+},
+"withmpi": true, //This flag makes sure that the process is submitted using MPI
+"max_wallclock_seconds": 3600 //Maximum wallclock time in seconds
+}'''
+
+        
+        try:
+            #Perhaps a pk or uuid was given?
+            return types.DataParamType(sub_classes=('aiida.data:core.dict',)).convert(value, param, ctx)
+        except:
+            pass #Ok this failed, then we examine the argument as a filename
+
+        if value=="template.json":
+            print("Writing template to wf_options.json")
+            with open(f"wf_options.json","w") as f:
+                f.write(wf_options_template)          
+            quit()
+
+        import os
+        if (os.path.isfile(value)):
+            # a file was given. Create a dict from the file and use it
+            try:
+                with open(value,"r") as f:
+                    import json
+                    from json_minify import json_minify
+
+                    wf_options=json.loads(json_minify(f.read()))
+            except RuntimeError as error:
+                print(error)
+                print(f"{value} could not be converted into a dict")
+                os.abort()
+            aiida_dict=DataFactory("dict")
+            wf_dict=aiida_dict(wf_options)
+            
+            return wf_dict 
+        
+        return None 
 
 class FleurinpType(click.ParamType):
     """

@@ -654,7 +654,7 @@ def launch_ssdisp(structure, inpgen, calc_parameters, fleur, wf_parameters, scf_
         import json
         with open("ssdisp_conv.json","w") as file:
             json.dump(ssdisp_output,file,indent=2)
-
+        #TODO plotting would be nice here 
 
 @click.command('dmi')
 @options.STRUCTURE_OR_FILE(default=defaults.get_fept_film_structure, show_default=True)
