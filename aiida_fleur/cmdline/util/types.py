@@ -68,7 +68,7 @@ class OptionsType(click.ParamType):
 "resources": {
     "num_machines": 1, //Number of computing nodes
     "num_mpiprocs_per_machine": 1, //Number of MPI processes per node
-    "num_cpus_per_mpiproc": 2 //Number of OMP threads per MPI process
+    "num_cores_per_mpiproc": 2 //Number of OMP threads per MPI process
 },
 "withmpi": true, //This flag makes sure that the process is submitted using MPI
 "max_wallclock_seconds": 3600 //Maximum wallclock time in seconds
