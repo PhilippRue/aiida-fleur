@@ -173,6 +173,7 @@ class FleurEosWorkChain(WorkChain):
             struc=struc_or_fleurinp.get_structuredata_ncf()
         else:    
             inputs.structure = struc_or_fleurinp
+            struct=inputs.structure
         natoms = len(struc.sites)
         label = f'scale_{self.ctx.scalelist[i]}'.replace('.', '_')
         label_c = '|eos| fleur_scf_wc'
@@ -215,6 +216,7 @@ class FleurEosWorkChain(WorkChain):
                 struc=struc_or_fleurinp.get_structuredata_ncf()
             else:
                 inputs.structure = struc_or_fleurinp
+                struc=struc_or_fleurinp
             natoms = len(struc.sites)
             label = f'scale_{self.ctx.scalelist[i + 1]}'.replace('.', '_')
             label_c = '|eos| fleur_scf_wc'
